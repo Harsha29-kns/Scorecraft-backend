@@ -41,7 +41,7 @@ async function data(){
     for (let i of teams){
         const password=i.registrationNumber.slice(-1)+i.teamMembers.map((i)=>{return i.registrationNumber.slice(-1)}).join("")
         if(pass.includes(password)){
-            console.log("Ammooooooooooo---------",password,i.teamname)
+            console.log("wrong---",password,i.teamname)
         }
         else{
         console.log(i.teamname,password)

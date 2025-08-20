@@ -4,8 +4,6 @@ const Innov = require("../modles/innov");
 const nodemailer = require("nodemailer");
 const dot = require("dotenv").config();
 const cors = require("cors");
-const { route } = require("./UserRoutes");
-const codebrack = require("../modles/codebrack");
 const sendData = require('../sheet');
 
 router.use(express.json());
@@ -23,20 +21,20 @@ const transporter = nodemailer.createTransport({
 
 // Template for "Payment Under Verification"
 const paymentVerificationTemplate = (studentName, teamName) => `
-  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background-color: #1a1a1a; border: 2px solid #ff6600; border-radius: 10px; overflow: hidden;">
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; background-color: #1a1a1a; border: 2px solid #ff6600; border-radius: 10px; overflow: hidden; color: #e0e0e0;">
     <div style="background-color: #ff6600; color: #ffffff; padding: 20px; text-align: center;">
       <h2 style="margin: 0; font-size: 24px; font-family: 'Ninja Naruto', Arial, sans-serif;">Mission Under Review</h2>
     </div>
-    <div style="padding: 30px; color: #e0e0e0; background-image: url('https://media.istockphoto.com/id/1482730811/vector/grunge-red-under-verification-word-square-rubber-seal-stamp-on-white-background.jpg?s=612x612&w=is&k=20&c=plbjhkASy8b9IKYnh73ePaHGoxhZMWkGtKD-ok3RiHM='); background-size: cover; background-position: center;">
-      <p style="font-size: 16px; line-height: 1.6;">Greetings <strong style="color: #ff9933;">${studentName}</strong>,</p>
-      <p style="font-size: 16px; line-height: 1.6;">
+    <div style="padding: 30px; line-height: 1.6;">
+      <p style="font-size: 16px;">Greetings <strong style="color: #ff9933;">${studentName}</strong>,</p>
+      <p style="font-size: 16px;">
         Thank you for assembling your team, <strong style="color: #ff9933;">${teamName}</strong>. Your submission has been received and is now under verification by the Hokage's office.
       </p>
-      <p style="font-size: 16px; line-height: 1.6;">
+      <p style="font-size: 16px;">
         We will send another scroll via email once your payment is confirmed.
       </p>
-      <p style="font-size: 16px; line-height: 1.6; margin-top: 20px;">Stay vigilant,</p>
-      <p style="font-size: 16px; line-height: 1.6; font-weight: bold; color: #ff9933;">The Konoha Council</p>
+      <p style="font-size: 16px; margin-top: 20px;">Stay vigilant,</p>
+      <p style="font-size: 16px; font-weight: bold; color: #ff9933;">Scorecraft Team</p>
     </div>
     <div style="background: #333333; color: #aaaaaa; text-align: center; padding: 10px; font-size: 12px;">
       <p style="margin: 0;">&copy; 2025 Scorecraft. All Rights Reserved.</p>
@@ -44,18 +42,17 @@ const paymentVerificationTemplate = (studentName, teamName) => `
   </div>
 `;
 
-// Template for "Registration Successful"
 const registrationSuccessfulTemplate = (studentName, teamName) => `
-  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background-color: #1a1a1a; border: 2px solid #ff6600; border-radius: 10px; overflow: hidden;">
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; background-color: #1a1a1a; border: 2px solid #ff6600; border-radius: 10px; overflow: hidden; color: #e0e0e0;">
     <div style="background-color: #ff6600; color: #ffffff; padding: 20px; text-align: center;">
         <h2 style="margin: 0; font-size: 24px; font-family: 'Ninja Naruto', Arial, sans-serif;">Mission Successful!</h2>
     </div>
-    <div style="padding: 30px; color: #e0e0e0; background-image: url('https://www.shutterstock.com/image-vector/verified-rubber-ink-vector-stamp-260nw-582686488.jpg'); background-size: cover; background-position: center;">
-        <p style="font-size: 16px; line-height: 1.6;">Congratulations <strong style="color: #ff9933;">${studentName}</strong>,</p>
-        <p style="font-size: 16px; line-height: 1.6;">
+    <div style="padding: 30px; line-height: 1.6;">
+        <p style="font-size: 16px;">Congratulations <strong style="color: #ff9933;">${studentName}</strong>,</p>
+        <p style="font-size: 16px;">
             Your team, <strong style="color: #ff9933;">${teamName}</strong>, has been officially registered! Your payment has been verified.
         </p>
-        <p style="font-size: 16px; line-height: 1.6;">
+        <p style="font-size: 16px;">
             Proceed to the next stage by joining the official communication channel.
         </p>
         <div style="text-align: center; margin: 30px 0;">
@@ -63,14 +60,15 @@ const registrationSuccessfulTemplate = (studentName, teamName) => `
                 Join WhatsApp Group
             </a>
         </div>
-        <p style="font-size: 16px; line-height: 1.6;">Best regards,</p>
-        <p style="font-size: 16px; line-height: 1.6; font-weight: bold; color: #ff9933;">The Konoha Council</p>
+        <p style="font-size: 16px;">Best regards,</p>
+        <p style="font-size: 16px; font-weight: bold; color: #ff9933;">Scorecraft Team</p>
     </div>
     <div style="background: #333333; color: #aaaaaa; text-align: center; padding: 10px; font-size: 12px;">
       <p style="margin: 0;">&copy; 2025 Scorecraft. All Rights Reserved.</p>
     </div>
   </div>
 `;
+
 
 
 const sendEmail = async (to, subject, html) => {
@@ -268,7 +266,7 @@ router.post("/feedback/:id", async (req, res) => {
     await team.save();
     res.json("done")
 })
-
+{/*
 router.post("/codebrake/register", async (req, res) => {
     const { body } = req;
     const count = (await codebrack.find({})).length
@@ -301,7 +299,7 @@ router.get("/codebrake/students", async (req, res) => {
     const students = await codebrack.find({})
     res.json(students)
 })
-
+*/}
 router.post("/event/verify/:id", async (req, res) => {
     try {
         const { id } = req.params;

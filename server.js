@@ -1,17 +1,17 @@
 const express=require("express")
 const connectDB=require("./db")
-const UserRoutes=require("./routes/UserRoutes")
+
 const EventRegister=require("./routes/EventRegister")
 
 const socketio = require("socket.io");
-const pay=require("./routes/payment")
+//const pay=require("./routes/payment")
 const Teams=require("./modles/event")
 const app=express()
 const server=require("http").createServer(app)
 const io=socketio(server,{cors:{origin:"*"}})
 const cors=require("cors")
 const Event = require("./modles/event")
-const codebreak = require("./modles/codebrack")
+//const codebreak = require("./modles/codebrack")
 const Innov=require("./modles/innov")
 
 let prev=""
@@ -88,9 +88,7 @@ let domainStat=false
 const count=0
 app.use(cors({origin:"*"}))
 app.use(express.json())
-app.use("/user",UserRoutes)
 app.use("/event",EventRegister)
-app.use("/pay",pay)
 app.get("/domains", (req, res) => {
     // This sends the 'domains' array you already have at the top of the file
     res.status(200).json(domains);
