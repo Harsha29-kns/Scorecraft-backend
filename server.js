@@ -96,7 +96,7 @@ app.get("/domains", (req, res) => {
     res.status(200).json(domains);
 });
 app.get("/",(req,res)=>{
-    res.send("hi i am server for coding blocks kare")
+    res.send("hi i am server")
 })
 
 app.post("/api/admin/update-score/:id", async (req, res) => {
