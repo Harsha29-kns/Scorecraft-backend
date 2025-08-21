@@ -87,7 +87,7 @@ app.get("/domains", (req, res) => {
 });
 
 app.get("/", (req, res) => {
-  res.send("hi i am server");
+  res.send("hi i am server of scorecraft this is my home page. Test me with /event/students");
 });
 
 app.post("/api/admin/update-score/:id", async (req, res) => {
