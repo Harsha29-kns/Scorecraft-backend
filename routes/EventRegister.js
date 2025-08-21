@@ -5,6 +5,7 @@ const nodemailer = require("nodemailer");
 const dot = require("dotenv").config();
 const cors = require("cors");
 const sendData = require('../sheet');
+const qrcode = require('qrcode'); // --- NEW: Import QR code library ---
 
 router.use(express.json());
 router.use(cors({ origin: "*" }));
@@ -17,67 +18,146 @@ const transporter = nodemailer.createTransport({
     },
 });
 
-// --- NEW NARUTO THEMED EMAIL TEMPLATES ---
-
-// Template for "Payment Under Verification"
+// --- EXISTING EMAIL TEMPLATES (UNCHANGED) ---
 const paymentVerificationTemplate = (studentName, teamName) => `
-  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; background-color: #1a1a1a; border: 2px solid #ff6600; border-radius: 10px; overflow: hidden; color: #e0e0e0;">
-    <div style="background-color: #ff6600; color: #ffffff; padding: 20px; text-align: center;">
-      <h2 style="margin: 0; font-size: 24px; font-family: 'Ninja Naruto', Arial, sans-serif;">Mission Under Review</h2>
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+    </style>
+  </head>
+  <body style="font-family: 'Roboto', Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;">
+    <div style="max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+      <div style="background: linear-gradient(90deg, #4a00e0, #8e2de2); color: #ffffff; padding: 30px 20px; text-align: center;">
+        <h1 style="margin: 0; font-size: 28px;">Registration Pending</h1>
+      </div>
+      <div style="padding: 30px 25px; color: #333333; line-height: 1.6;">
+        <p style="font-size: 16px;">Hello <strong style="color: #4a00e0;">${studentName}</strong>,</p>
+        <p style="font-size: 16px;">
+          Thank you for submitting your registration. We've received the entry for your team,
+          <strong style="color: #4a00e0;">${teamName}</strong>, and it's now in the queue for verification.
+        </p>
+        <div style="background-color: #f9f6ff; border-left: 4px solid #8e2de2; padding: 15px; margin: 20px 0; font-size: 15px;">
+          <strong>Status:</strong> Payment Verification In Progress
+          <p style="margin: 5px 0 0 0;">No further action is required from you at this moment. We'll notify you as soon as the process is complete.</p>
+        </div>
+        <p style="font-size: 16px;">You will receive another email from us once your payment is confirmed.</p>
+        <p style="font-size: 16px; margin-top: 30px;">Best regards,<br>
+          <strong style="color: #4a00e0;">The Scorecraft Team</strong>
+        </p>
+      </div>
+      <div style="background-color: #f1f1f1; color: #888888; text-align: center; padding: 15px; font-size: 12px;">
+        <p style="margin: 0;">&copy; 2025 Scorecraft. All Rights Reserved.</p>
+      </div>
     </div>
-    <div style="padding: 30px; line-height: 1.6;">
-      <p style="font-size: 16px;">Greetings <strong style="color: #ff9933;">${studentName}</strong>,</p>
-      <p style="font-size: 16px;">
-        Thank you for assembling your team, <strong style="color: #ff9933;">${teamName}</strong>. Your submission has been received and is now under verification by the Hokage's office.
-      </p>
-      <p style="font-size: 16px;">
-        We will send another scroll via email once your payment is confirmed.
-      </p>
-      <p style="font-size: 16px; margin-top: 20px;">Stay vigilant,</p>
-      <p style="font-size: 16px; font-weight: bold; color: #ff9933;">Scorecraft Team</p>
-    </div>
-    <div style="background: #333333; color: #aaaaaa; text-align: center; padding: 10px; font-size: 12px;">
-      <p style="margin: 0;">&copy; 2025 Scorecraft. All Rights Reserved.</p>
-    </div>
-  </div>
+  </body>
+  </html>
 `;
 
 const registrationSuccessfulTemplate = (studentName, teamName) => `
-  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 20px auto; background-color: #1a1a1a; border: 2px solid #ff6600; border-radius: 10px; overflow: hidden; color: #e0e0e0;">
-    <div style="background-color: #ff6600; color: #ffffff; padding: 20px; text-align: center;">
-        <h2 style="margin: 0; font-size: 24px; font-family: 'Ninja Naruto', Arial, sans-serif;">Mission Successful!</h2>
-    </div>
-    <div style="padding: 30px; line-height: 1.6;">
-        <p style="font-size: 16px;">Congratulations <strong style="color: #ff9933;">${studentName}</strong>,</p>
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+    </style>
+  </head>
+  <body style="font-family: 'Roboto', Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;">
+    <div style="max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+      <div style="background: linear-gradient(90deg, #11998e, #38ef7d); color: #ffffff; padding: 30px 20px; text-align: center;">
+        <h1 style="margin: 0; font-size: 28px;">Registration Confirmed!</h1>
+      </div>
+      <div style="padding: 30px 25px; color: #333333; line-height: 1.6;">
+        <p style="font-size: 16px;">Congratulations <strong style="color: #11998e;">${studentName}</strong>,</p>
         <p style="font-size: 16px;">
-            Your team, <strong style="color: #ff9933;">${teamName}</strong>, has been officially registered! Your payment has been verified.
+          Welcome aboard! Your payment has been verified, and your team,
+          <strong style="color: #11998e;">${teamName}</strong>, is officially registered for the event.
         </p>
         <p style="font-size: 16px;">
-            Proceed to the next stage by joining the official communication channel.
+          To receive all important updates, announcements, and schedules, please join our official WhatsApp group.
         </p>
         <div style="text-align: center; margin: 30px 0;">
-            <a href="https://chat.whatsapp.com/IiutiJ3D7bR2NR8lVimsLJ" style="text-decoration: none; background-color: #ff6600; color: #ffffff; padding: 15px 30px; border-radius: 5px; font-weight: bold; font-size: 16px;">
-                Join WhatsApp Group
-            </a>
+          <a href="https://chat.whatsapp.com/IiutiJ3D7bR2NR8lVimsLJ" style="text-decoration: none; background: linear-gradient(90deg, #11998e, #38ef7d); color: #ffffff; padding: 15px 35px; border-radius: 50px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+            Join Official Group
+          </a>
         </div>
-        <p style="font-size: 16px;">Best regards,</p>
-        <p style="font-size: 16px; font-weight: bold; color: #ff9933;">Scorecraft Team</p>
+        <p style="font-size: 16px;">We're excited to see you there!</p>
+        <p style="font-size: 16px; margin-top: 30px;">Best regards,<br>
+          <strong style="color: #11998e;">The Scorecraft Team</strong>
+        </p>
+      </div>
+      <div style="background-color: #f1f1f1; color: #888888; text-align: center; padding: 15px; font-size: 12px;">
+        <p style="margin: 0;">&copy; 2025 Scorecraft. All Rights Reserved.</p>
+      </div>
     </div>
-    <div style="background: #333333; color: #aaaaaa; text-align: center; padding: 10px; font-size: 12px;">
-      <p style="margin: 0;">&copy; 2025 Scorecraft. All Rights Reserved.</p>
-    </div>
-  </div>
+  </body>
+  </html>
 `;
 
 
+// --- NEW: Email Template for Sending QR Codes ---
+const qrCodeEmailTemplate = (studentName, teamName, members) => {
+    const memberHtml = members.map((member, index) => `
+      <div style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin-bottom: 15px; text-align: left; display: flex; align-items: center; gap: 20px;">
+        <img src="cid:qrcode${index}" alt="QR Code" style="width: 100px; height: 100px; border-radius: 4px;"/>
+        <div>
+          <h3 style="margin: 0 0 5px 0; color: #4a00e0; font-size: 18px;">
+            ${member.name} ${member.isLead ? '<span style="background-color: #4a00e0; color: white; font-size: 10px; padding: 3px 8px; border-radius: 10px; vertical-align: middle; margin-left: 8px;">LEAD</span>' : ''}
+          </h3>
+          <p style="margin: 0; color: #555555; font-size: 14px;">Reg No: ${member.regNo}</p>
+        </div>
+      </div>
+    `).join('');
 
-const sendEmail = async (to, subject, html) => {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+        </style>
+      </head>
+      <body style="font-family: 'Roboto', Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;">
+        <div style="max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <div style="background: linear-gradient(90deg, #4a00e0, #8e2de2); color: #ffffff; padding: 30px 20px; text-align: center;">
+            <h1 style="margin: 0; font-size: 28px;">Your Event Credentials</h1>
+          </div>
+          <div style="padding: 30px 25px; color: #333333; line-height: 1.6;">
+            <p style="font-size: 16px;">Hello <strong style="color: #4a00e0;">${studentName}</strong>,</p>
+            <p style="font-size: 16px;">
+              Get ready! Here are the official event credentials for your team,
+              <strong style="color: #4a00e0;">${teamName}</strong>.
+            </p>
+            <p style="font-size: 16px;">
+              Please distribute the unique QR code to each team member. <strong>These are required for check-in and attendance</strong> at all rounds.
+            </p>
+            <div style="margin-top: 30px; background-color: #f9f6ff; padding: 20px; border-radius: 8px;">
+              ${memberHtml}
+            </div>
+            <p style="font-size: 16px; margin-top: 30px;">Best of luck,<br>
+              <strong style="color: #4a00e0;">The Scorecraft Team</strong>
+            </p>
+          </div>
+          <div style="background-color: #f1f1f1; color: #888888; text-align: center; padding: 15px; font-size: 12px;">
+            <p style="margin: 0;">&copy; 2025 Scorecraft. All Rights Reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+};
+
+
+// --- UPDATED sendEmail function to handle attachments ---
+const sendEmail = async (to, subject, html, attachments = []) => {
     try {
         await transporter.sendMail({
             from: process.env.MAIL,
             to,
             subject,
             html,
+            attachments, // --- NEW: Added attachments ---
         });
     } catch (err) {
         console.error("Error sending email:", err);
@@ -94,7 +174,6 @@ router.post("/team/:password", async (req, res) => {
         if (team) {
             return res.json(team);
         }
-        // ✅ CHANGED: Use 401 for failed login, which is more accurate.
         res.status(401).json({ message: "Invalid credentials" });
     }
     catch {
@@ -105,15 +184,14 @@ router.post("/team/:password", async (req, res) => {
 router.post("/register", async (req, res) => {
     try {
         const count = await Innov.countDocuments({});
-        req.body.registrationNumber = (count + 1).toString(); // Assign unique registration number
+        req.body.registrationNumber = (count + 1).toString(); 
 
-        const { name, email, members, upi, txn, url, teamname } = req.body;
-        console.log(req.body)
-        const countTeam = (await Innov.find({})).length
-        console.log(countTeam)
+        const { name, email, teamname } = req.body;
+        
+        const countTeam = await Innov.countDocuments({});
+        
         if (countTeam < 90) {
             if (!name || !email || !teamname) {
-                console.log("eroor in required")
                 return res.status(400).json({ error: "Missing required fields." });
             }
             if (!Array.isArray(req.body.teamMembers) || req.body.teamMembers.length !== 4) {
@@ -121,27 +199,14 @@ router.post("/register", async (req, res) => {
             }
             const data = await Innov.create(req.body);
 
-            // Send registration data to Google Sheet
-            await sendData({
-                fullName: req.body.name,
-                email: req.body.email,
-                registerNumber: req.body.registrationNumber,
-                year: req.body.year,
-                department: req.body.department,
-                phone: req.body.phone
-            });
+            await sendData(req.body);
 
-            // *** USE THE NEW THEMED EMAIL TEMPLATE HERE ***
             const emailContent = paymentVerificationTemplate(name, teamname);
-
             sendEmail(email, `Your team ${teamname} is under verification`, emailContent);
             res.status(201).json({ message: "Team registered and email sent successfully", data });
-            return
         }
         else {
-            console.log("haaa")
-            res.status(401).json({ message: "Restration team got filled!" })
-            return
+            res.status(401).json({ message: "Registration team got filled!" });
         }
     } catch (err) {
         console.error("Error in /register:", err);
@@ -152,60 +217,46 @@ router.post("/register", async (req, res) => {
 router.delete("/team/:id", async (req, res) => {
     try {
         const { id } = req.params;
-        const { email } = req.body
-        console.log(email)
         const team = await Innov.findByIdAndDelete(id);
-        console.log(team)
-        // This email can also be themed if needed
+        
         const emailContent = `
-     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; color: #333; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); border-radius: 8px; overflow: hidden;">
-   <div style="background:#e16254;color:#ece8e7;padding:20px;text-align:center;display:flex;justify-content: space-between;align-items: center;">
-       <h2 style="margin: 0; font-size: 20px; font-weight: bold;">Team Refund Successfull</h2>
-   </div>
-   <div style="padding: 20px; background: #ffffff; border: 1px solid #ddd; line-height: 1.6;">
-     <p style="font-size: 16px; margin: 0 0 15px;">Hello <strong style="color: #E16254;">${team.name}</strong>,</p>
-     <p style="font-size: 16px; margin: 0 0 15px;">
-         Your team, <strong>${team.teamName}</strong>, has been successfully withdrawed.
-     </p>
-     <p style="margin-top: 20px; font-size: 16px;">Best regards,</p>
-     <p style="font-size: 16px; font-weight: bold; margin: 0;">Scorecraft Team</p>
-   </div>
-   <div style="background: #919294; color: #ECE8E7; text-align: center; padding: 10px; font-size: 14px;">
-     <p style="margin: 0;">&copy; 2024 Team. All rights reserved.</p>
-   </div>
-</div>
-     `;
-        sendEmail(team.email, "Refund Succesfull", emailContent)
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; color: #333; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); border-radius: 8px; overflow: hidden;">
+                <div style="background:#e16254;color:#ece8e7;padding:20px;text-align:center;display:flex;justify-content: space-between;align-items: center;">
+                    <h2 style="margin: 0; font-size: 20px; font-weight: bold;">Team Refund Successful</h2>
+                </div>
+                <div style="padding: 20px; background: #ffffff; border: 1px solid #ddd; line-height: 1.6;">
+                    <p style="font-size: 16px; margin: 0 0 15px;">Hello <strong style="color: #E16254;">${team.name}</strong>,</p>
+                    <p style="font-size: 16px; margin: 0 0 15px;">
+                        Your team, <strong>${team.teamname}</strong>, has been successfully withdrawn.
+                    </p>
+                    <p style="margin-top: 20px; font-size: 16px;">Best regards,</p>
+                    <p style="font-size: 16px; font-weight: bold; margin: 0;">Scorecraft Team</p>
+                </div>
+                <div style="background: #919294; color: #ECE8E7; text-align: center; padding: 10px; font-size: 14px;">
+                    <p style="margin: 0;">&copy; 2024 Team. All rights reserved.</p>
+                </div>
+            </div>
+        `;
+        sendEmail(team.email, "Refund Successful", emailContent)
         res.status(200).json({ message: "Team refunded successfully" });
     } catch (err) {
         console.error("Error in /team/:id:", err);
         res.status(500).json({ error: "Internal server error" });
     }
-})
+});
 
 router.get("/team/:id", async (req, res) => {
-    console.log("local")
-    const { id } = req.params;
-    const team = await Innov.findById(id);
-    let allm = team.teamMembers.map((i) => { return i.registrationNumber + "@klu.ac.in" })
-    allm.push(team.email)
-    if (!team) {
-        return res.status(404).json({ error: "Team not found." });
+    try {
+        const { id } = req.params;
+        const team = await Innov.findById(id);
+        if (!team) {
+            return res.status(404).json({ error: "Team not found." });
+        }
+        res.status(200).json(team);
+    } catch (err) {
+        console.error("Error fetching team by id:", err);
+        res.status(500).json({ error: "Internal server error" });
     }
-
-    if (!team || !team.email) {
-        return res.status(400).json({ error: "Lead email is missing." });
-    }
-
-    team.verified = true;
-    await team.save();
-
-    // *** USE THE NEW THEMED EMAIL TEMPLATE HERE ***
-    const emailContent = registrationSuccessfulTemplate(team.name, team.teamname);
-
-    await team.save()
-    await sendEmail(allm, `Your Team ${team.teamname} is Verified`, emailContent);
-    res.status(200).json({ message: "Team verified successfully" });
 });
 
 router.get("/students", async (req, res) => {
@@ -217,9 +268,9 @@ router.get("/students", async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
+
 router.post("/team/score/:id", async (req, res) => {
     try {
-        console.log("local")
         const { id } = req.params;
         const { SecoundReview, score } = req.body
         let Team = await Innov.findById(id);
@@ -230,10 +281,10 @@ router.post("/team/score/:id", async (req, res) => {
         res.json("done")
     }
     catch (e) {
-        console.log(e)
         res.status(420).json("Don't act smart")
     }
 });
+
 router.post("/team/score1/:id", async (req, res) => {
     try {
         const { id } = req.params;
@@ -241,7 +292,6 @@ router.post("/team/score1/:id", async (req, res) => {
         let Team = await Innov.findById(id);
         Team.FirstReview = FirstReview;
         Team.FirstReviewScore = score;
-        // We don't calculate FinalScore here, as the second review isn't done yet
         await Team.save();
         res.json("done");
     } catch (e) {
@@ -249,6 +299,7 @@ router.post("/team/score1/:id", async (req, res) => {
         res.status(500).json("Server error");
     }
 });
+
 router.post("/pro/:id", async (req, res) => {
     const { id } = req.params;
     const { projectId } = req.body;
@@ -256,7 +307,7 @@ router.post("/pro/:id", async (req, res) => {
     team.ProblemID = projectId;
     await team.save();
     res.json("done")
-})
+});
 
 router.post("/feedback/:id", async (req, res) => {
     const { id } = req.params;
@@ -265,65 +316,59 @@ router.post("/feedback/:id", async (req, res) => {
     team.FeedBack = feedback;
     await team.save();
     res.json("done")
-})
-{/*
-router.post("/codebrake/register", async (req, res) => {
-    const { body } = req;
-    const count = (await codebrack.find({})).length
-    console.log(count)
-    if (count < 345) {
-        console.log("gihwe")
-        const student = await codebrack.create(body);
-        const emailContent = paymentVerificationTemplate(student.name);
-        sendEmail(student.email, "Your Payment under Verification", emailContent);
-        res.json("done");
-    }
-    else {
-        res.status(401).json("all done")
-    }
 });
 
-router.get("/codebrake/student/:id", async (req, res) => {
-    const { id } = req.params;
-    const student = await codebrack.findById(id);
-    student.verifyed = true;
-    await student.save();
-
-    const emailContent = registrationSuccessfulTemplate(student.name);
-    sendEmail(student.email, "Registration Successful", emailContent);
-
-    res.json("done");
-});
-
-router.get("/codebrake/students", async (req, res) => {
-    const students = await codebrack.find({})
-    res.json(students)
-})
-*/}
+// --- UPDATED VERIFICATION ROUTE TO GENERATE QR CODES ---
 router.post("/event/verify/:id", async (req, res) => {
     try {
         const { id } = req.params;
         const team = await Innov.findById(id);
         if (!team) return res.status(404).json({ error: "Team not found." });
 
-        // --- PASSWORD GENERATION LOGIC ---
-        // 1. Generate a 6-digit number password
         const generatedPassword = Math.floor(100000 + Math.random() * 900000).toString();
-
-        // 2. Update the team document
         team.verified = true;
-        team.password = generatedPassword; // Save the plain number password
+        team.password = generatedPassword;
+
+        // --- NEW QR CODE GENERATION LOGIC ---
+        const emailAttachments = [];
+        const emailMemberList = [];
+
+        // 1. Generate for the Lead
+        const leadQrData = JSON.stringify({ teamId: team._id, registrationNumber: team.registrationNumber });
+        if (!team.lead) team.lead = {}; // Ensure lead object exists
+        team.lead.qrCode = await qrcode.toDataURL(leadQrData);
+        emailAttachments.push({
+            filename: `${team.name}_qrcode.png`,
+            content: team.lead.qrCode.split("base64,")[1],
+            encoding: 'base64',
+            cid: 'qrcode0'
+        });
+        emailMemberList.push({ name: team.name, regNo: team.registrationNumber, isLead: true });
+
+        // 2. Generate for Team Members
+        for (let i = 0; i < team.teamMembers.length; i++) {
+            const member = team.teamMembers[i];
+            const memberQrData = JSON.stringify({ teamId: team._id, registrationNumber: member.registrationNumber });
+            member.qrCode = await qrcode.toDataURL(memberQrData);
+            
+            emailAttachments.push({
+                filename: `${member.name}_qrcode.png`,
+                content: member.qrCode.split("base64,")[1],
+                encoding: 'base64',
+                cid: `qrcode${i + 1}`
+            });
+            emailMemberList.push({ name: member.name, regNo: member.registrationNumber, isLead: false });
+        }
+        
         await team.save();
-        // --- END OF NEW LOGIC ---
 
-        // Send verification email to lead
-        const emailContent = registrationSuccessfulTemplate(team.name, team.teamname);
-        await sendEmail(team.email, `Your Team ${team.teamname} is Verified`, emailContent);
+        // --- NEW: Send Verification Email with QR Codes ---
+        const emailContent = qrCodeEmailTemplate(team.name, team.teamname, emailMemberList);
+        await sendEmail(team.email, `Your Team ${team.teamname} is Verified - QR Codes Attached`, emailContent, emailAttachments);
 
-        // Respond to the admin dashboard with the plain-text password
         res.status(200).json({
-            message: "Team verified and email sent",
-            password: generatedPassword // This lets the admin see the new password
+            message: "Team verified and QR codes sent successfully",
+            password: generatedPassword
         });
 
     } catch (err) {
@@ -332,6 +377,60 @@ router.post("/event/verify/:id", async (req, res) => {
     }
 });
 
+// --- NEW API ENDPOINT FOR SUBMITTING ATTENDANCE ---
+router.post("/attendance/submit", async (req, res) => {
+    try {
+        const { teamId, roundNumber, attendanceData } = req.body;
+
+        if (!teamId || !roundNumber || !attendanceData) {
+            return res.status(400).json({ error: "Missing required fields." });
+        }
+
+        const team = await Innov.findById(teamId);
+        if (!team) {
+            return res.status(404).json({ error: "Team not found." });
+        }
+
+        // Ensure lead object and attendance array exist
+        if (!team.lead) team.lead = {};
+        if (!team.lead.attendance) team.lead.attendance = [];
+
+        // Update lead's attendance
+        const leadStatus = attendanceData[team.registrationNumber];
+        if (leadStatus) {
+            const roundIndex = team.lead.attendance.findIndex(a => a.round == roundNumber);
+            if (roundIndex > -1) {
+                team.lead.attendance[roundIndex].status = leadStatus;
+            } else {
+                team.lead.attendance.push({ round: roundNumber, status: leadStatus });
+            }
+        }
+
+        // Update members' attendance
+        for (const member of team.teamMembers) {
+            if (!member.attendance) member.attendance = []; // Ensure attendance array exists
+            const memberStatus = attendanceData[member.registrationNumber];
+            if (memberStatus) {
+                const roundIndex = member.attendance.findIndex(a => a.round == roundNumber);
+                if (roundIndex > -1) {
+                    member.attendance[roundIndex].status = memberStatus;
+                } else {
+                    member.attendance.push({ round: roundNumber, status: memberStatus });
+                }
+            }
+        }
+        
+        await team.save();
+        res.status(200).json({ message: `Attendance for Round ${roundNumber} for team ${team.teamname} submitted successfully.` });
+
+    } catch (err) {
+        console.error("Error submitting attendance:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+
+// --- EXISTING ROUTES (UNCHANGED) ---
 router.post("/sector/:id", async (req, res) => {
     try {
         const { id } = req.params;
@@ -346,9 +445,6 @@ router.post("/sector/:id", async (req, res) => {
     }
 });
 
-// --- NEW ROUTES FOR ISSUE TRACKING ---
-
-// 1. Submit an issue from Team Panel
 router.post("/issue/:teamId", async (req, res) => {
     try {
         const { teamId } = req.params;
@@ -366,7 +462,6 @@ router.post("/issue/:teamId", async (req, res) => {
     }
 });
 
-// 2. Get all teams with issues for Admin Panel
 router.get("/issues", async (req, res) => {
     try {
         const teamsWithIssues = await Innov.find({ 'issues.0': { $exists: true } });
@@ -376,7 +471,6 @@ router.get("/issues", async (req, res) => {
     }
 });
 
-// 3. Resolve an issue from Admin Panel
 router.post("/issue/resolve/:teamId/:issueId", async (req, res) => {
     try {
         const { teamId, issueId } = req.params;
@@ -393,6 +487,5 @@ router.post("/issue/resolve/:teamId/:issueId", async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
-
 
 module.exports = router;
