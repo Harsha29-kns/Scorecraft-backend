@@ -80,6 +80,14 @@ let domainStat = false;
 const count = 0;
 app.use(cors({ origin: "*" }));
 app.use(express.json());
+
+// --- NEW: MIDDLEWARE TO ATTACH IO TO REQUESTS ---
+// This makes the `io` instance available in your routes as `req.io`
+app.use((req, res, next) => {
+    req.io = io;
+    next();
+});
+
 app.use("/event", EventRegister);
 
 app.get("/domains", (req, res) => {
@@ -164,40 +172,28 @@ io.on("connection", (socket) => {
     io.emit("domainStat", true);
   });
 
-  // ========== MODIFIED CODE BLOCK START ==========
   socket.on("domainSelected", async (team) => {
     try {
       const { teamId, domain } = team;
-
-      // Find the team by ID
       const Team = await Innov.findById(teamId);
-
-      // **FIX:** Check if the team exists before proceeding
       if (!Team) {
         console.error(`Error: Team not found with ID: ${teamId}`);
-        // Optionally, emit an error back to the client
         socket.emit("error", { message: "Team not found or missing teamname." });
-        return; // Stop execution of this handler
+        return;
       }
 
-      // Check if the domain has available slots
       const selectedDomain = domains.find((d) => d.id === domain);
       if (!selectedDomain || selectedDomain.slots <= 0) {
         io.to(socket.id).emit("domaindata", "fulled");
         return;
       }
 
-      // Proceed with domain selection logic
       socket.join(Team.teamname);
       io.to(Team.teamname).emit("domainSelected", selectedDomain);
 
-      // Decrement slot count
       selectedDomain.slots -= 1;
-
-      // Broadcast updated domain data to all clients
       io.emit("domaindata", domains);
 
-      // Update the team's domain in the database
       Team.Domain = selectedDomain.name;
       await Team.save();
     } catch (error) {
@@ -205,7 +201,6 @@ io.on("connection", (socket) => {
       socket.emit("error", { message: "An internal server error occurred." });
     }
   });
-  // ========== MODIFIED CODE BLOCK END ==========
 
   socket.on("domaindat", (res) => {
     io.emit("domaindata", domains);
@@ -240,14 +235,15 @@ io.on("connection", (socket) => {
     io.emit("leaderboard", teams);
   });
 
+  // --- UPDATED: SOCKET LISTENERS TO USE VERIFIED COUNT AND 60 TEAM LIMIT ---
   socket.on("reg", async () => {
-    const count = (await Innov.find({})).length;
-    io.emit("check", count >= 90 ? "stop" : "ok");
+    const count = await Innov.countDocuments({ verified: true });
+    io.emit("check", count >= 60 ? "stop" : "ok");
   });
 
   socket.on("check", async () => {
-    const count = (await Innov.find({})).length;
-    io.emit("see", count >= 90 ? "stop" : "omk");
+    const count = await Innov.countDocuments({ verified: true });
+    io.emit("see", count >= 60 ? "stop" : "omk");
   });
 });
 

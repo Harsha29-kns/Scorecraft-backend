@@ -5,7 +5,7 @@ const nodemailer = require("nodemailer");
 const dot = require("dotenv").config();
 const cors = require("cors");
 const sendData = require('../sheet');
-const qrcode = require('qrcode'); // --- NEW: Import QR code library ---
+const qrcode = require('qrcode');
 
 router.use(express.json());
 router.use(cors({ origin: "*" }));
@@ -95,8 +95,6 @@ const registrationSuccessfulTemplate = (studentName, teamName) => `
   </html>
 `;
 
-
-// --- NEW: Email Template for Sending QR Codes ---
 const qrCodeEmailTemplate = (studentName, teamName, members) => {
     const memberHtml = members.map((member, index) => `
       <div style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin-bottom: 15px; text-align: left; display: flex; align-items: center; gap: 20px;">
@@ -148,8 +146,6 @@ const qrCodeEmailTemplate = (studentName, teamName, members) => {
     `;
 };
 
-
-// --- UPDATED sendEmail function to handle attachments ---
 const sendEmail = async (to, subject, html, attachments = []) => {
     try {
         await transporter.sendMail({
@@ -157,7 +153,7 @@ const sendEmail = async (to, subject, html, attachments = []) => {
             to,
             subject,
             html,
-            attachments, // --- NEW: Added attachments ---
+            attachments,
         });
     } catch (err) {
         console.error("Error sending email:", err);
@@ -165,7 +161,18 @@ const sendEmail = async (to, subject, html, attachments = []) => {
     }
 };
 
-// --- YOUR EXISTING ROUTES ---
+// --- NEW: API ENDPOINT TO GET THE CURRENT TEAM COUNT ---
+router.get("/teams/count", async (req, res) => {
+    try {
+        // This counts only the teams that have been verified (i.e., payment is complete)
+        const teamCount = await Innov.countDocuments({ verified: true });
+        res.status(200).json({ count: teamCount });
+    } catch (error) {
+        console.error("Error fetching team count:", error);
+        res.status(500).json({ message: "Error fetching team count" });
+    }
+});
+
 
 router.post("/team/:password", async (req, res) => {
     try {
@@ -181,16 +188,16 @@ router.post("/team/:password", async (req, res) => {
     }
 });
 
+// --- UPDATED: REGISTER ROUTE WITH 60 TEAM CAPACITY LIMIT ---
 router.post("/register", async (req, res) => {
     try {
-        const count = await Innov.countDocuments({});
-        req.body.registrationNumber = (count + 1).toString(); 
-
-        const { name, email, teamname } = req.body;
-        
         const countTeam = await Innov.countDocuments({});
         
-        if (countTeam < 90) {
+        // --- CHANGE: Set the registration limit to 60 ---
+        if (countTeam < 60) {
+            const { name, email, teamname } = req.body;
+            req.body.registrationNumber = (countTeam + 1).toString();
+
             if (!name || !email || !teamname) {
                 return res.status(400).json({ error: "Missing required fields." });
             }
@@ -203,10 +210,19 @@ router.post("/register", async (req, res) => {
 
             const emailContent = paymentVerificationTemplate(name, teamname);
             sendEmail(email, `Your team ${teamname} is under verification`, emailContent);
+
+            // --- NEW: Check if the limit is reached and notify clients ---
+            // Note: This requires you to have `io` attached to your `req` object
+            // via middleware in your main server file (e.g., app.js or server.js)
+            const newTotalCount = countTeam + 1;
+            if (newTotalCount >= 60 && req.io) {
+                req.io.emit("registrationStatus", "stop");
+            }
+
             res.status(201).json({ message: "Team registered and email sent successfully", data });
         }
         else {
-            res.status(401).json({ message: "Registration team got filled!" });
+            res.status(403).json({ message: "Registration is full. Cannot accept new teams." });
         }
     } catch (err) {
         console.error("Error in /register:", err);
@@ -318,7 +334,6 @@ router.post("/feedback/:id", async (req, res) => {
     res.json("done")
 });
 
-// --- UPDATED VERIFICATION ROUTE TO GENERATE QR CODES ---
 router.post("/event/verify/:id", async (req, res) => {
     try {
         const { id } = req.params;
@@ -329,13 +344,12 @@ router.post("/event/verify/:id", async (req, res) => {
         team.verified = true;
         team.password = generatedPassword;
 
-        // --- NEW QR CODE GENERATION LOGIC ---
         const emailAttachments = [];
         const emailMemberList = [];
 
         // 1. Generate for the Lead
         const leadQrData = JSON.stringify({ teamId: team._id, registrationNumber: team.registrationNumber });
-        if (!team.lead) team.lead = {}; // Ensure lead object exists
+        if (!team.lead) team.lead = {};
         team.lead.qrCode = await qrcode.toDataURL(leadQrData);
         emailAttachments.push({
             filename: `${team.name}_qrcode.png`,
@@ -361,8 +375,13 @@ router.post("/event/verify/:id", async (req, res) => {
         }
         
         await team.save();
+        
+        // --- NEW: Emit event to update count on all clients after verification ---
+        if (req.io) {
+            const verifiedTeamCount = await Innov.countDocuments({ verified: true });
+            req.io.emit("updateTeamCount", verifiedTeamCount);
+        }
 
-        // --- NEW: Send Verification Email with QR Codes ---
         const emailContent = qrCodeEmailTemplate(team.name, team.teamname, emailMemberList);
         await sendEmail(team.email, `Your Team ${team.teamname} is Verified - QR Codes Attached`, emailContent, emailAttachments);
 
@@ -377,7 +396,6 @@ router.post("/event/verify/:id", async (req, res) => {
     }
 });
 
-// --- NEW API ENDPOINT FOR SUBMITTING ATTENDANCE ---
 router.post("/attendance/submit", async (req, res) => {
     try {
         const { teamId, roundNumber, attendanceData } = req.body;
@@ -391,11 +409,9 @@ router.post("/attendance/submit", async (req, res) => {
             return res.status(404).json({ error: "Team not found." });
         }
 
-        // Ensure lead object and attendance array exist
         if (!team.lead) team.lead = {};
         if (!team.lead.attendance) team.lead.attendance = [];
 
-        // Update lead's attendance
         const leadStatus = attendanceData[team.registrationNumber];
         if (leadStatus) {
             const roundIndex = team.lead.attendance.findIndex(a => a.round == roundNumber);
@@ -406,9 +422,8 @@ router.post("/attendance/submit", async (req, res) => {
             }
         }
 
-        // Update members' attendance
         for (const member of team.teamMembers) {
-            if (!member.attendance) member.attendance = []; // Ensure attendance array exists
+            if (!member.attendance) member.attendance = [];
             const memberStatus = attendanceData[member.registrationNumber];
             if (memberStatus) {
                 const roundIndex = member.attendance.findIndex(a => a.round == roundNumber);
@@ -429,8 +444,6 @@ router.post("/attendance/submit", async (req, res) => {
     }
 });
 
-
-// --- EXISTING ROUTES (UNCHANGED) ---
 router.post("/sector/:id", async (req, res) => {
     try {
         const { id } = req.params;
