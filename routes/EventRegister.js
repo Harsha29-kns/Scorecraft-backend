@@ -467,7 +467,7 @@ router.post("/issue/:teamId", async (req, res) => {
         const team = await Innov.findById(teamId);
         if (!team) return res.status(404).json({ error: "Team not found." });
 
-        team.issues.push({ text: issueText });
+        team.issues.push({ text: issueText,timestamp:new Date() });
         await team.save();
         res.status(200).json(team);
     } catch (err) {

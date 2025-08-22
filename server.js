@@ -77,11 +77,14 @@ let domains = [
 ];
 let domainStat = false;
 
+// --- NEW: In-memory storage for persistent data ---
+let reminders = [];
+let latestPPT = null;
+
 const count = 0;
 app.use(cors({ origin: "*" }));
 app.use(express.json());
 
-// --- NEW: MIDDLEWARE TO ATTACH IO TO REQUESTS ---
 // This makes the `io` instance available in your routes as `req.io`
 app.use((req, res, next) => {
     req.io = io;
@@ -149,6 +152,14 @@ app.post("/problemSta", async (req, res) => {
 });
 
 io.on("connection", (socket) => {
+  console.log("A user connected");
+
+  // --- NEW: Listener for when a client requests the latest data ---
+  socket.on("client:getData", () => {
+      // Send the stored data only to the client that asked for it
+      socket.emit("server:loadData", { reminders, ppt: latestPPT });
+  });
+
   socket.on("join", (name) => {
     console.log(name);
     socket.join(name);
@@ -218,9 +229,19 @@ io.on("connection", (socket) => {
     await Team.save();
   });
 
+  // --- UPDATED: Store reminders ---
   socket.on("admin:sendReminder", (data) => {
-    io.emit("client:newReminder", data);
+    const newReminder = { ...data, time: new Date() };
+    reminders.push(newReminder);
+    io.emit("admin:sendReminder", newReminder); // Broadcast the new reminder
     console.log(`Broadcasted reminder: ${data.message}`);
+  });
+
+  // --- UPDATED: Store PPT data ---
+  socket.on("admin:sendPPT", (data) => {
+    latestPPT = data;
+    io.emit("client:receivePPT", data);
+    console.log(`Broadcasted PPT template: ${data.fileName}`);
   });
 
   socket.on("leaderboard", async (team) => {
@@ -235,7 +256,6 @@ io.on("connection", (socket) => {
     io.emit("leaderboard", teams);
   });
 
-  // --- UPDATED: SOCKET LISTENERS TO USE VERIFIED COUNT AND 60 TEAM LIMIT ---
   socket.on("reg", async () => {
     const count = await Innov.countDocuments({ verified: true });
     io.emit("check", count >= 60 ? "stop" : "ok");
