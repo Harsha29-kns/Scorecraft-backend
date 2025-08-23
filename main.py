@@ -64,7 +64,7 @@ def generate_excel():
 
     # Create and save Excel file
     df = pd.DataFrame(records)
-    df.to_excel("innovation_teams.xlsx", index=False)
+    df.to_excel("hackfroge.xlsx", index=False)
     print("Excel file generated successfully!")
 
 if __name__ == "__main__":
