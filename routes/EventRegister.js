@@ -475,6 +475,37 @@ router.post("/issue/:teamId", async (req, res) => {
     }
 });
 
+// Add this new route inside your routes/EventRegister.js file
+// It should be placed with your other POST routes.
+
+router.post("/updateDomain", async (req, res) => {
+  try {
+    const { teamId, domain } = req.body;
+
+    if (!teamId || !domain) {
+      return res.status(400).send("Team ID and domain are required.");
+    }
+
+    // CORRECTED: Use the 'Innov' model to match the rest of your file
+    const updatedTeam = await Innov.findByIdAndUpdate(
+      teamId,
+      { Domain: domain },
+      { new: true } // This option returns the updated document
+    );
+
+    if (!updatedTeam) {
+      return res.status(404).send("Team not found.");
+    }
+
+    // Send a success response back to the admin panel
+    res.status(200).json({ message: "Domain updated successfully", team: updatedTeam });
+
+  } catch (error) {
+    console.error("Error updating domain:", error);
+    res.status(500).send("Server error while updating domain.");
+  }
+});
+
 router.get("/issues", async (req, res) => {
     try {
         const teamsWithIssues = await Innov.find({ 'issues.0': { $exists: true } });
