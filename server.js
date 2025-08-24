@@ -75,9 +75,11 @@ let domains = [
       "Interactive e-learning platforms, content sharing, and peer-to-peer learning.",
   },
 ];
-let domainStat = false;
 
-// --- NEW: In-memory storage for persistent data ---
+// --- CHANGED: This variable now holds the specific time or false ---
+let domainStat = false; 
+
+// --- In-memory storage for persistent data ---
 let reminders = [];
 let latestPPT = null;
 
@@ -85,7 +87,6 @@ const count = 0;
 app.use(cors({ origin: "*" }));
 app.use(express.json());
 
-// This makes the `io` instance available in your routes as `req.io`
 app.use((req, res, next) => {
     req.io = io;
     next();
@@ -154,9 +155,7 @@ app.post("/problemSta", async (req, res) => {
 io.on("connection", (socket) => {
   console.log("A user connected");
 
-  // --- NEW: Listener for when a client requests the latest data ---
   socket.on("client:getData", () => {
-      // Send the stored data only to the client that asked for it
       socket.emit("server:loadData", { reminders, ppt: latestPPT });
   });
 
@@ -174,14 +173,28 @@ io.on("connection", (socket) => {
     io.emit("eventupdates", prev);
   });
 
+  // --- CHANGED: This now emits the actual timestamp to the clients ---
   socket.on("domainStat", () => {
     io.emit("domainStat", domainStat);
   });
 
+  // --- ADD THIS: A new listener for the admin to SET the time ---
+  socket.on("admin:setDomainTime", (isoTimestamp) => {
+      domainStat = isoTimestamp; // Set the time for everyone
+      io.emit("domainStat", domainStat); // Broadcast the new time to all clients
+      console.log(`Domain opening time set to: ${isoTimestamp}`);
+  });
+  
+  // This listener is for an instant 'open now' button
   socket.on("domainOpen", () => {
     domainStat = true;
     io.emit("domainStat", true);
   });
+  socket.on("admin:closeDomains", () => {
+    domainStat = false; // Reset the state to false
+    io.emit("domainStat", domainStat); // Broadcast the 'closed' state to all clients
+    console.log("Domains closed by admin.");
+  });  
 
   socket.on("domainSelected", async (team) => {
     try {
@@ -229,15 +242,13 @@ io.on("connection", (socket) => {
     await Team.save();
   });
 
-  // --- UPDATED: Store reminders ---
   socket.on("admin:sendReminder", (data) => {
     const newReminder = { ...data, time: new Date() };
     reminders.push(newReminder);
-    io.emit("admin:sendReminder", newReminder); // Broadcast the new reminder
+    io.emit("admin:sendReminder", newReminder);
     console.log(`Broadcasted reminder: ${data.message}`);
   });
 
-  // --- UPDATED: Store PPT data ---
   socket.on("admin:sendPPT", (data) => {
     latestPPT = data;
     io.emit("client:receivePPT", data);
