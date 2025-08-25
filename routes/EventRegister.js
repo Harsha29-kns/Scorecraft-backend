@@ -18,7 +18,7 @@ const transporter = nodemailer.createTransport({
     },
 });
 
-// --- EXISTING EMAIL TEMPLATES (UNCHANGED) ---
+
 const paymentVerificationTemplate = (studentName, teamName) => `
   <!DOCTYPE html>
   <html>
@@ -78,7 +78,7 @@ const registrationSuccessfulTemplate = (studentName, teamName) => `
           To receive all important updates, announcements, and schedules, please join our official WhatsApp group.
         </p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="https://chat.whatsapp.com/IiutiJ3D7bR2NR8lVimsLJ" style="text-decoration: none; background: linear-gradient(90deg, #11998e, #38ef7d); color: #ffffff; padding: 15px 35px; border-radius: 50px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+          <a href="https://chat.whatsapp.com/" style="text-decoration: none; background: linear-gradient(90deg, #11998e, #38ef7d); color: #ffffff; padding: 15px 35px; border-radius: 50px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
             Join Official Group
           </a>
         </div>
@@ -130,9 +130,19 @@ const qrCodeEmailTemplate = (studentName, teamName, members) => {
             <p style="font-size: 16px;">
               Please distribute the unique QR code to each team member. <strong>These are required for check-in and attendance</strong> at all rounds.
             </p>
+            <p style="font-size: 16px; margin-top: 30px;">
+              To receive all important updates, announcements, and schedules, please join our official WhatsApp group.
+            </p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="https://chat.whatsapp.com/" style="text-decoration: none; background: linear-gradient(90deg, #4a00e0, #8e2de2); color: #ffffff; padding: 15px 35px; border-radius: 50px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+                Join Official Group
+              </a>
+            </div>
+
             <div style="margin-top: 30px; background-color: #f9f6ff; padding: 20px; border-radius: 8px;">
               ${memberHtml}
             </div>
+            
             <p style="font-size: 16px; margin-top: 30px;">Best of luck,<br>
               <strong style="color: #4a00e0;">The Scorecraft Team</strong>
             </p>
@@ -161,11 +171,11 @@ const sendEmail = async (to, subject, html, attachments = []) => {
     }
 };
 
-// --- NEW: API ENDPOINT TO GET THE CURRENT TEAM COUNT ---
+
 router.get("/teams/count", async (req, res) => {
     try {
-        // This counts only the teams that have been verified (i.e., payment is complete)
-        const teamCount = await Innov.countDocuments({ verified: true });
+        // --- CHANGED: This now counts ALL teams (verified and unverified) ---
+        const teamCount = await Innov.countDocuments({});
         res.status(200).json({ count: teamCount });
     } catch (error) {
         console.error("Error fetching team count:", error);
@@ -177,7 +187,7 @@ router.get("/teams/count", async (req, res) => {
 router.post("/team/:password", async (req, res) => {
     try {
         const { password } = req.params
-        const team = await Innov.findOne({ password: password })
+        const team = await Innov.findOne({ password: password, verified: true })
         if (team) {
             return res.json(team);
         }
@@ -188,13 +198,19 @@ router.post("/team/:password", async (req, res) => {
     }
 });
 
-// --- UPDATED: REGISTER ROUTE WITH 60 TEAM CAPACITY LIMIT ---
+// In your EventRegister.js file
 router.post("/register", async (req, res) => {
     try {
+        // --- MODIFIED: Check the comprehensive status from middleware ---
+        if (req.isRegClosed) {
+            return res.status(403).json({ message: "Registration is currently closed." });
+        }
+        
+        const registrationLimit = req.registrationLimit;
         const countTeam = await Innov.countDocuments({});
         
-        // --- CHANGE: Set the registration limit to 60 ---
-        if (countTeam < 60) {
+        // This if statement is no longer needed but kept as a backup validation
+        if (countTeam < registrationLimit) {
             const { name, email, teamname } = req.body;
             req.body.registrationNumber = (countTeam + 1).toString();
 
@@ -211,20 +227,25 @@ router.post("/register", async (req, res) => {
             const emailContent = paymentVerificationTemplate(name, teamname);
             sendEmail(email, `Your team ${teamname} is under verification`, emailContent);
 
-            // --- NEW: Check if the limit is reached and notify clients ---
-            // Note: This requires you to have `io` attached to your `req` object
-            // via middleware in your main server file (e.g., app.js or server.js)
             const newTotalCount = countTeam + 1;
-            if (newTotalCount >= 60 && req.io) {
-                req.io.emit("registrationStatus", "stop");
+            if (req.io) {
+                req.io.emit("registrationStatus", {
+                    isClosed: req.isRegClosed, // Use the pre-calculated status
+                    count: newTotalCount,
+                    limit: registrationLimit
+                });
             }
 
             res.status(201).json({ message: "Team registered and email sent successfully", data });
         }
         else {
+            // This case should now be caught by the first if block
             res.status(403).json({ message: "Registration is full. Cannot accept new teams." });
         }
     } catch (err) {
+        if (err.code === 11000) {
+            return res.status(409).json({ error: "This team name is already taken. Please choose another one." });
+        }
         console.error("Error in /register:", err);
         res.status(500).json({ error: "Internal server error" });
     }
@@ -347,7 +368,7 @@ router.post("/event/verify/:id", async (req, res) => {
         const emailAttachments = [];
         const emailMemberList = [];
 
-        // 1. Generate for the Lead
+        
         const leadQrData = JSON.stringify({ teamId: team._id, registrationNumber: team.registrationNumber });
         if (!team.lead) team.lead = {};
         team.lead.qrCode = await qrcode.toDataURL(leadQrData);
@@ -376,7 +397,7 @@ router.post("/event/verify/:id", async (req, res) => {
         
         await team.save();
         
-        // --- NEW: Emit event to update count on all clients after verification ---
+        
         if (req.io) {
             const verifiedTeamCount = await Innov.countDocuments({ verified: true });
             req.io.emit("updateTeamCount", verifiedTeamCount);
@@ -475,8 +496,7 @@ router.post("/issue/:teamId", async (req, res) => {
     }
 });
 
-// Add this new route inside your routes/EventRegister.js file
-// It should be placed with your other POST routes.
+
 
 router.post("/updateDomain", async (req, res) => {
   try {
@@ -486,11 +506,11 @@ router.post("/updateDomain", async (req, res) => {
       return res.status(400).send("Team ID and domain are required.");
     }
 
-    // CORRECTED: Use the 'Innov' model to match the rest of your file
+    
     const updatedTeam = await Innov.findByIdAndUpdate(
       teamId,
       { Domain: domain },
-      { new: true } // This option returns the updated document
+      { new: true } 
     );
 
     if (!updatedTeam) {

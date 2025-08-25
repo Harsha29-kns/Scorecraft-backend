@@ -6,7 +6,7 @@ const generateTeamPassword = async () => {
         await connectDB()
         const teams = await Innov.find({})
         
-        console.log("\n=== Team Passwords and Sectors ===\n")
+        console.log("\n=== Team Sectors ===\n")
         
         for (let i = 0; i < teams.length; i++) {
             const team = teams[i]
@@ -18,7 +18,7 @@ const generateTeamPassword = async () => {
         }
         console.log("\n=== End of Passwords and Sectors ===\n")
     } catch (error) {
-        console.error("Error generating passwords and sectors:", error)
+        console.error("Error generating  sectors:", error)
     } finally {
         process.exit()
     }

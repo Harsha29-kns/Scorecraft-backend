@@ -10,13 +10,3 @@ const connectDB=async()=>{
     }
 }
 module.exports=connectDB
-// async function f(){
-// const teams=await Event.find()
-// for(let i of teams){
-//     const team=await Event.findOne({teamName:i.teamName})
-//     team.HuntScore=0
-//     await team.save()
-// }
-// console.log("done")
-// }
-// f()
