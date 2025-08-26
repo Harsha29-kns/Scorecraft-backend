@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const Innov = require("../modles/innov");
+const hackforge = require("../module/hackforge");
 const nodemailer = require("nodemailer");
 const dot = require("dotenv").config();
 const cors = require("cors");
@@ -175,7 +175,7 @@ const sendEmail = async (to, subject, html, attachments = []) => {
 router.get("/teams/count", async (req, res) => {
     try {
         // --- CHANGED: This now counts ALL teams (verified and unverified) ---
-        const teamCount = await Innov.countDocuments({});
+        const teamCount = await hackforge.countDocuments({});
         res.status(200).json({ count: teamCount });
     } catch (error) {
         console.error("Error fetching team count:", error);
@@ -187,7 +187,7 @@ router.get("/teams/count", async (req, res) => {
 router.post("/team/:password", async (req, res) => {
     try {
         const { password } = req.params
-        const team = await Innov.findOne({ password: password, verified: true })
+        const team = await hackforge.findOne({ password: password, verified: true })
         if (team) {
             return res.json(team);
         }
@@ -207,7 +207,7 @@ router.post("/register", async (req, res) => {
         }
         
         const registrationLimit = req.registrationLimit;
-        const countTeam = await Innov.countDocuments({});
+        const countTeam = await hackforge.countDocuments({});
         
         // This if statement is no longer needed but kept as a backup validation
         if (countTeam < registrationLimit) {
@@ -220,7 +220,7 @@ router.post("/register", async (req, res) => {
             if (!Array.isArray(req.body.teamMembers) || req.body.teamMembers.length !== 4) {
                 return res.status(400).json({ error: "Team must have exactly 4 members (plus lead)" });
             }
-            const data = await Innov.create(req.body);
+            const data = await hackforge.create(req.body);
 
             await sendData(req.body);
 
@@ -254,7 +254,7 @@ router.post("/register", async (req, res) => {
 router.delete("/team/:id", async (req, res) => {
     try {
         const { id } = req.params;
-        const team = await Innov.findByIdAndDelete(id);
+        const team = await hackforge.findByIdAndDelete(id);
         
         const emailContent = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; color: #333; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); border-radius: 8px; overflow: hidden;">
@@ -285,7 +285,7 @@ router.delete("/team/:id", async (req, res) => {
 router.get("/team/:id", async (req, res) => {
     try {
         const { id } = req.params;
-        const team = await Innov.findById(id);
+        const team = await hackforge.findById(id);
         if (!team) {
             return res.status(404).json({ error: "Team not found." });
         }
@@ -298,7 +298,7 @@ router.get("/team/:id", async (req, res) => {
 
 router.get("/students", async (req, res) => {
     try {
-        const teams = await Innov.find();
+        const teams = await hackforge.find();
         res.status(200).json(teams);
     } catch (err) {
         console.error("Error in /students:", err);
@@ -310,7 +310,7 @@ router.post("/team/score/:id", async (req, res) => {
     try {
         const { id } = req.params;
         const { SecoundReview, score } = req.body
-        let Team = await Innov.findById(id);
+        let Team = await hackforge.findById(id);
         Team.SecoundReview = SecoundReview
         Team.SecoundReviewScore = score
         Team.FinalScore = Team.FirstReviewScore + Team.SecoundReviewScore
@@ -326,7 +326,7 @@ router.post("/team/score1/:id", async (req, res) => {
     try {
         const { id } = req.params;
         const { FirstReview, score } = req.body;
-        let Team = await Innov.findById(id);
+        let Team = await hackforge.findById(id);
         Team.FirstReview = FirstReview;
         Team.FirstReviewScore = score;
         await Team.save();
@@ -340,7 +340,7 @@ router.post("/team/score1/:id", async (req, res) => {
 router.post("/pro/:id", async (req, res) => {
     const { id } = req.params;
     const { projectId } = req.body;
-    const team = await Innov.findById(id);
+    const team = await hackforge.findById(id);
     team.ProblemID = projectId;
     await team.save();
     res.json("done")
@@ -349,7 +349,7 @@ router.post("/pro/:id", async (req, res) => {
 router.post("/feedback/:id", async (req, res) => {
     const { id } = req.params;
     const { feedback } = req.body;
-    const team = await Innov.findById(id);
+    const team = await hackforge.findById(id);
     team.FeedBack = feedback;
     await team.save();
     res.json("done")
@@ -358,7 +358,7 @@ router.post("/feedback/:id", async (req, res) => {
 router.post("/event/verify/:id", async (req, res) => {
     try {
         const { id } = req.params;
-        const team = await Innov.findById(id);
+        const team = await hackforge.findById(id);
         if (!team) return res.status(404).json({ error: "Team not found." });
 
         const generatedPassword = Math.floor(100000 + Math.random() * 900000).toString();
@@ -399,7 +399,7 @@ router.post("/event/verify/:id", async (req, res) => {
         
         
         if (req.io) {
-            const verifiedTeamCount = await Innov.countDocuments({ verified: true });
+            const verifiedTeamCount = await hackforge.countDocuments({ verified: true });
             req.io.emit("updateTeamCount", verifiedTeamCount);
         }
 
@@ -425,7 +425,7 @@ router.post("/attendance/submit", async (req, res) => {
             return res.status(400).json({ error: "Missing required fields." });
         }
 
-        const team = await Innov.findById(teamId);
+        const team = await hackforge.findById(teamId);
         if (!team) {
             return res.status(404).json({ error: "Team not found." });
         }
@@ -469,7 +469,7 @@ router.post("/sector/:id", async (req, res) => {
     try {
         const { id } = req.params;
         const { Sector } = req.body;
-        const team = await Innov.findById(id);
+        const team = await hackforge.findById(id);
         if (!team) return res.status(404).json({ error: "Team not found." });
         team.Sector = Sector;
         await team.save();
@@ -485,7 +485,7 @@ router.post("/issue/:teamId", async (req, res) => {
         const { issueText } = req.body;
         if (!issueText) return res.status(400).json({ error: "Issue text is required." });
 
-        const team = await Innov.findById(teamId);
+        const team = await hackforge.findById(teamId);
         if (!team) return res.status(404).json({ error: "Team not found." });
 
         team.issues.push({ text: issueText,timestamp:new Date() });
@@ -507,7 +507,7 @@ router.post("/updateDomain", async (req, res) => {
     }
 
     
-    const updatedTeam = await Innov.findByIdAndUpdate(
+    const updatedTeam = await hackforge.findByIdAndUpdate(
       teamId,
       { Domain: domain },
       { new: true } 
@@ -528,7 +528,7 @@ router.post("/updateDomain", async (req, res) => {
 
 router.get("/issues", async (req, res) => {
     try {
-        const teamsWithIssues = await Innov.find({ 'issues.0': { $exists: true } });
+        const teamsWithIssues = await hackforge.find({ 'issues.0': { $exists: true } });
         res.status(200).json(teamsWithIssues);
     } catch (err) {
         res.status(500).json({ error: "Internal server error" });
@@ -538,7 +538,7 @@ router.get("/issues", async (req, res) => {
 router.post("/issue/resolve/:teamId/:issueId", async (req, res) => {
     try {
         const { teamId, issueId } = req.params;
-        const team = await Innov.findById(teamId);
+        const team = await hackforge.findById(teamId);
         if (!team) return res.status(404).json({ error: "Team not found." });
 
         const issue = team.issues.id(issueId);

@@ -1,10 +1,10 @@
-const Innov = require("./modles/innov")
+const hackforge = require("./module/hackforge")
 const connectDB = require("./db")
 const sectors = ["Naruto", "Sasuke", "Itachi"]
 const generateTeamPassword = async () => {
     try {
         await connectDB()
-        const teams = await Innov.find({})
+        const teams = await hackforge.find({})
         
         console.log("\n=== Team Sectors ===\n")
         

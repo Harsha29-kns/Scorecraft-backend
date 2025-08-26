@@ -6,7 +6,7 @@ const app = express();
 const server = require("http").createServer(app);
 const io = socketio(server, { cors: { origin: "*" } });
 const cors = require("cors");
-const Innov = require("./modles/innov");
+const hackforge = require("./module/hackforge");
 
 // --- Server State Variables ---
 let prev = "";
@@ -63,7 +63,7 @@ app.use(async (req, res, next) => {
     req.registrationLimit = registrationLimit;
     
     // Check the current status and attach it to the request object
-    const count = await Innov.countDocuments({});
+    const count = await hackforge.countDocuments({});
     const isBeforeOpenTime = registrationOpenTime && new Date() < new Date(registrationOpenTime);
     const isFull = count >= registrationLimit;
     
@@ -87,13 +87,13 @@ app.post("/api/admin/update-score/:id", async (req, res) => {
     try {
         const { id } = req.params;
         const { gameScore } = req.body;
-        const team = await Innov.findById(id);
+        const team = await hackforge.findById(id);
         if (!team) {
             return res.status(404).json({ message: "Team not found." });
         }
         team.GameScore = Number(gameScore);
         await team.save();
-        const updatedLeaderboard = await Innov.find({}).sort({ GameScore: -1 });
+        const updatedLeaderboard = await hackforge.find({}).sort({ GameScore: -1 });
         io.emit("leaderboard", updatedLeaderboard);
         console.log(`Score updated for ${team.teamname}. New leaderboard broadcasted.`);
         res.status(200).json({ message: "Score updated successfully.", team });
@@ -106,7 +106,7 @@ app.post("/api/admin/update-score/:id", async (req, res) => {
 app.post("/pic", async (req, res) => {
     try {
         const { id, photo } = req.body;
-        const Team = await Innov.findById(id);
+        const Team = await hackforge.findById(id);
         Team.GroupPic = photo;
         await Team.save();
         res.json("done");
@@ -119,7 +119,7 @@ app.post("/pic", async (req, res) => {
 app.post("/problemSta", async (req, res) => {
     try {
         const { id, PS } = req.body;
-        const Team = await Innov.findById(id);
+        const Team = await hackforge.findById(id);
         Team.ProblemStatement = PS;
         await Team.save();
         res.json(PS);
@@ -132,7 +132,7 @@ app.post("/problemSta", async (req, res) => {
 // --- Core Status Function ---
 const checkRegistrationStatus = async () => {
     try {
-        const count = await Innov.countDocuments({});
+        const count = await hackforge.countDocuments({});
         const isBeforeOpenTime = registrationOpenTime && new Date() < new Date(registrationOpenTime);
         const isFull = count >= registrationLimit;
         const isClosed = isFull || isForcedClosed || isBeforeOpenTime;
@@ -231,7 +231,7 @@ io.on("connection", (socket) => {
     socket.on("domainSelected", async (team) => {
         try {
             const { teamId, domain } = team;
-            const Team = await Innov.findById(teamId);
+            const Team = await hackforge.findById(teamId);
             if (!Team) {
                 console.error(`Error: Team not found with ID: ${teamId}`);
                 return socket.emit("error", { message: "Team not found." });
@@ -259,7 +259,7 @@ io.on("connection", (socket) => {
     socket.on("admin", async (team) => {
         const { name, lead, teamMembers } = team;
         socket.join(name);
-        const Team = await Innov.findOne({ teamname: name });
+        const Team = await hackforge.findOne({ teamname: name });
         if (Team) {
             Team.lead = lead;
             Team.teamMembers = teamMembers;
@@ -283,12 +283,12 @@ io.on("connection", (socket) => {
 
     socket.on("leaderboard", async (team) => {
         const { teamname, GameScore } = team;
-        const Team = await Innov.findOne({ teamname: teamname });
+        const Team = await hackforge.findOne({ teamname: teamname });
         if (Team) {
             Team.GameScore = (Team.GameScore || 0) + GameScore;
             await Team.save();
         }
-        let teams = await Innov.find({}).sort((a, b) => (b.GameScore || 0) - (a.GameScore || 0));
+        let teams = await hackforge.find({}).sort((a, b) => (b.GameScore || 0) - (a.GameScore || 0));
         io.emit("leaderboard", teams);
     });
 });

@@ -1,5 +1,4 @@
 const mongoose=require("mongoose")
-const Event = require("./modles/event")
 const env=require("dotenv").config()
 const connectDB=async()=>{
     try {

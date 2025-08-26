@@ -12,13 +12,12 @@ def create_team_record(team: Dict) -> Dict:
         "Problem Statement": team.get("ProblemStatement", ""),
         "Domain": team.get("Domain", ""),
         "Score": team.get("Score", 0),
+        "First Review Score": team.get("FirstReviewScore", 0),
         "Second Review Score": team.get("SecoundReviewScore", 0),
-        "Third Review Score": team.get("ThirdReviewScore", 0),
-        "Final Score": team.get("FinalScore", 0),
-        "Room": team.get("room", ""),
         "UPI ID": team.get("upiId", ""),
         "Transaction ID": team.get("transtationId", ""),
         "Verification Status": "Verified" if team.get("verified", False) else "Pending"
+
     }
     
     # Add review data if available
@@ -41,10 +40,14 @@ def generate_excel():
         lead_record.update({
             "Name": team.get("name", ""),
             "Email": team.get("email", ""),
-            "Hostel":team.get("type",""),
             "Registration Number": team.get("registrationNumber", ""),
             "Role": "Team Lead",
-            "Sector":team.get("Sector","")
+            "Sector":team.get("Sector",""),
+            "Department": team.get("department", ""),
+            "Year": team.get("year", ""),
+            "Section": team.get("section", ""),
+            "Hostel":team.get("type",""),
+            "Room": team.get("room", "")
 
         })
         records.append(lead_record)
@@ -56,9 +59,13 @@ def generate_excel():
                 "Name": member.get("name", ""),
                 "Email":member.get("registrationNumber", "")+"@klu.ac.in",
                 "Registration Number": member.get("registrationNumber", ""),
-                "Hostel":member.get("type",''),
                 "Role": "Team Member",
-                "Sector":team.get("Sector","")
+                "Sector":team.get("Sector",""),
+                "Department": member.get("department", ""),
+                "Year": member.get("year", ""),
+                "Section": member.get("section", ""),
+                "Hostel":member.get("type",''),
+                "Room": member.get("room", "")
             })
             records.append(member_record)
 

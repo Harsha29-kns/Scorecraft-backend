@@ -65,7 +65,7 @@ const eventSchema = new mongoose.Schema({
     }]
 });
 
-const Event = mongoose.model("innov", eventSchema);
+const Event = mongoose.model("hackforge", eventSchema);
 module.exports = Event;
 
 // This function remains unchanged as it works with existing fields.
