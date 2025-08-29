@@ -8,80 +8,49 @@ const io = socketio(server, { cors: { origin: "*" } });
 const cors = require("cors");
 const hackforge = require("./module/hackforge");
 
-// --- Server State Variables ---
-let prev = "";
-let domains = [
-    { id: "1", name: "EdTech",
-       slots: 10,
-        description: "Innovations for enhancing learning experiences, course management, and skill development." },
-    { id: "2",
-       name: "Campus Automation",
-        slots: 10,
-         description: "Solutions for smart attendance, resource allocation." },
-    { id: "3",
-       name: "HealthTech",
-        slots: 10,
-         description: "Apps for mental health, fitness tracking, and on-campus medical assistance." },
-    { id: "4",
-       name: "HostelConnect",
-        slots: 10,
-         description: "Platforms for room allocation, maintenance requests, and complaint tracking." },
-    { id: "5",
-       name: "FoodieHub",
-        slots: 10,
-         description: "Apps for food ordering, meal pre-booking, and digital payments." },
-    { id: "6",
-       name: "GreenCampus",
-        slots: 10,
-         description: "Eco-friendly solutions for waste management and energy efficiency." },
-    { id: "7",
-       name: "Transport Solutions",
-        slots: 10,
-         description: "Smart transportation, tracking, and optimization of on-campus buses and cabs." },
-    { id: "8",
-       name: "Student Engagement",
-        slots: 10,
-        description: "Apps for student clubs, campus events, and extracurricular activities management." },
-    { id: "9",
-       name: "Digital Learning Platforms",
-        slots: 10,
-         description: "Interactive e-learning platforms, content sharing, and peer-to-peer learning." },
-];
-let domainStat = false;
-let reminders = [];
-let latestPPT = null;
-let registrationLimit = 60;
-let registrationOpenTime = null; // Stores the ISO timestamp for the opening time
-let isForcedClosed = false;     // To handle manual closing by an admin
 
-// --- Express Setup & Middleware ---
+const Domain = require('./module/Domain');
+const Reminder = require('./module/Reminder');
+const PPT = require('./module/PPT');
+const ServerSetting = require('./module/ServerSetting');
+
+
+let settings; // This will hold the settings loaded from DB.
+
+
 app.use(cors({ origin: "*" }));
 app.use(express.json());
 
 app.use(async (req, res, next) => {
     req.io = io;
-    req.registrationLimit = registrationLimit;
-    
-    // Check the current status and attach it to the request object
+    req.registrationLimit = settings.registrationLimit;
+
     const count = await hackforge.countDocuments({});
-    const isBeforeOpenTime = registrationOpenTime && new Date() < new Date(registrationOpenTime);
-    const isFull = count >= registrationLimit;
-    
-    req.isRegClosed = isFull || isForcedClosed || isBeforeOpenTime;
+    const isBeforeOpenTime = settings.registrationOpenTime && new Date() < new Date(settings.registrationOpenTime);
+    const isFull = count >= settings.registrationLimit;
+
+    req.isRegClosed = isFull || settings.isForcedClosed || isBeforeOpenTime;
 
     next();
 });
 
 app.use("/event", EventRegister);
 
-// --- Express Routes ---
-app.get("/domains", (req, res) => {
-    res.status(200).json(domains);
+
+app.get("/domains", async (req, res) => {
+    try {
+        const domains = await Domain.find({});
+        res.status(200).json(domains);
+    } catch (error) {
+        console.error("Error fetching domains:", error);
+        res.status(500).json({ message: "Server error while fetching domains." });
+    }
 });
 
 app.get("/", (req, res) => {
     res.send("hi i am server of scorecraft this is my home page.");
 });
+
 
 app.post("/api/admin/update-score/:id", async (req, res) => {
     try {
@@ -129,84 +98,89 @@ app.post("/problemSta", async (req, res) => {
     }
 });
 
-// --- Core Status Function ---
+
 const checkRegistrationStatus = async () => {
     try {
-        const count = await hackforge.countDocuments({});
-        const isBeforeOpenTime = registrationOpenTime && new Date() < new Date(registrationOpenTime);
-        const isFull = count >= registrationLimit;
-        const isClosed = isFull || isForcedClosed || isBeforeOpenTime;
         
+        const count = await hackforge.countDocuments({});
+        const isBeforeOpenTime = settings.registrationOpenTime && new Date() < new Date(settings.registrationOpenTime);
+        const isFull = count >= settings.registrationLimit;
+        const isClosed = isFull || settings.isForcedClosed || isBeforeOpenTime;
+
         io.emit("registrationStatus", {
             isClosed: isClosed,
             count: count,
-            limit: registrationLimit,
-            openTime: registrationOpenTime
+            limit: settings.registrationLimit,
+            openTime: settings.registrationOpenTime
         });
     } catch (error) {
         console.error("Error checking registration status:", error);
     }
 };
 
-// --- Socket.IO Connection Handling ---
+
 io.on("connection", (socket) => {
     console.log("A user connected");
 
-    socket.on("check", async () => {
-        checkRegistrationStatus();
-    });
+    
+    socket.on("check", checkRegistrationStatus);
+    io.emit("domainStat", settings.domainStat);
 
-    // Admin Controls for Registration
-    socket.on("admin:setRegLimit", (limit) => {
+
+    // Admin Controls for Registration - NOW UPDATES DATABASE
+    socket.on("admin:setRegLimit", async (limit) => {
         const newLimit = parseInt(limit, 10);
         if (!isNaN(newLimit) && newLimit >= 0) {
-            registrationLimit = newLimit;
-            console.log(`Registration limit set to: ${registrationLimit}`);
+            settings.registrationLimit = newLimit;
+            await settings.save();
+            console.log(`Registration limit updated in DB: ${settings.registrationLimit}`);
             checkRegistrationStatus();
         }
     });
 
-    socket.on("admin:setRegOpenTime", (isoTimestamp) => {
-        registrationOpenTime = isoTimestamp;
-        isForcedClosed = false;
-        console.log(`Registration opening time set to: ${registrationOpenTime}`);
+    socket.on("admin:setRegOpenTime", async (isoTimestamp) => {
+        settings.registrationOpenTime = isoTimestamp;
+        settings.isForcedClosed = false;
+        await settings.save();
+        console.log(`Registration opening time updated in DB: ${settings.registrationOpenTime}`);
         checkRegistrationStatus();
     });
 
-    socket.on("admin:forceCloseReg", () => {
-        registrationOpenTime = null;
-        isForcedClosed = true;
-        console.log("Registrations have been manually closed by an admin.");
-        checkRegistrationStatus();
-    });
-    
-    socket.on("admin:forceOpenReg", () => {
-        registrationOpenTime = null;
-        isForcedClosed = false;
-        console.log("Registrations have been manually opened by an admin.");
+    socket.on("admin:forceCloseReg", async () => {
+        settings.registrationOpenTime = null;
+        settings.isForcedClosed = true;
+        await settings.save();
+        console.log("Registrations manually closed in DB.");
         checkRegistrationStatus();
     });
 
-    // Admin Controls for Domain Selection
-    socket.on("admin:setDomainTime", (isoTimestamp) => {
-        domainStat = isoTimestamp;
-        io.emit("domainStat", domainStat);
-        console.log(`Domain opening time set to: ${isoTimestamp}`);
+    socket.on("admin:forceOpenReg", async () => {
+        settings.registrationOpenTime = null;
+        settings.isForcedClosed = false;
+        await settings.save();
+        console.log("Registrations manually opened in DB.");
+        checkRegistrationStatus();
     });
-    
-    socket.on("domainOpen", () => {
-        domainStat = true;
+
+    // Admin Controls for Domain Selection - NOW UPDATES DATABASE
+    socket.on("domainOpen", async () => {
+        settings.domainStat = true;
+        await settings.save();
         io.emit("domainStat", true);
+        console.log("Domains opened in DB.");
     });
 
-    socket.on("admin:closeDomains", () => {
-        domainStat = false;
-        io.emit("domainStat", domainStat);
-        console.log("Domains closed by admin.");
+    socket.on("admin:closeDomains", async () => {
+        settings.domainStat = false;
+        await settings.save();
+        io.emit("domainStat", false);
+        console.log("Domains closed in DB.");
     });
 
     // General Event and Team Socket Listeners
-    socket.on("client:getData", () => {
+    socket.on("client:getData", async () => {
+        const reminders = await Reminder.find({}).sort({ time: -1 }).limit(10);
+        const latestPPT = await PPT.findOne({}).sort({ uploadedAt: -1 });
         socket.emit("server:loadData", { reminders, ppt: latestPPT });
     });
 
@@ -215,44 +189,67 @@ io.on("connection", (socket) => {
         socket.join(name);
     });
 
-    socket.on("eventupdates", (text) => {
-        prev = text;
+    socket.on("eventupdates", async (text) => {
+        settings.latestEventUpdate = text;
+        await settings.save();
         io.emit("eventupdates", text);
     });
 
     socket.on("prevevent", () => {
-        io.emit("eventupdates", prev);
+        io.emit("eventupdates", settings.latestEventUpdate);
     });
 
     socket.on("domainStat", () => {
-        io.emit("domainStat", domainStat);
+        io.emit("domainStat", settings.domainStat);
     });
 
+    
     socket.on("domainSelected", async (team) => {
         try {
-            const { teamId, domain } = team;
+            const { teamId, domain: domainId } = team;
             const Team = await hackforge.findById(teamId);
+
             if (!Team) {
                 console.error(`Error: Team not found with ID: ${teamId}`);
-                return socket.emit("error", { message: "Team not found." });
+                return io.to(socket.id).emit("domainSelected", { error: "Team not found." });
             }
-            const selectedDomain = domains.find((d) => d.id === domain);
-            if (!selectedDomain || selectedDomain.slots <= 0) {
-                return io.to(socket.id).emit("domaindata", "fulled");
+            if (Team.Domain) {
+                return io.to(socket.id).emit("domainSelected", { error: "You have already selected a domain." });
             }
-            socket.join(Team.teamname);
-            io.to(Team.teamname).emit("domainSelected", selectedDomain);
-            selectedDomain.slots -= 1;
-            io.emit("domaindata", domains);
-            Team.Domain = selectedDomain.name;
+
+            // The core atomic operation
+            const updatedDomain = await Domain.findOneAndUpdate(
+                { id: domainId, slots: { $gt: 0 } },
+                { $inc: { slots: -1 } },
+                { new: true }
+            );
+
+            if (!updatedDomain) {
+                // This is the "fulled" case.
+                const domains = await Domain.find({});
+                // Let the client know their attempt failed and send the updated list.
+                return io.to(socket.id).emit("domaindata", { domains, error: "fulled" });
+            }
+            
+            // --- Success Path ---
+            Team.Domain = updatedDomain.name;
             await Team.save();
+            
+            // Let the client know their selection was successful
+            io.to(socket.id).emit("domainSelected", { success: true, domain: updatedDomain });
+
+            // Broadcast the new state of all domains to every client
+            const allDomains = await Domain.find({});
+            io.emit("domaindata", allDomains);
+
         } catch (error) {
             console.error("Error processing domain selection:", error);
-            socket.emit("error", { message: "An internal server error occurred." });
+            io.to(socket.id).emit("domainSelected", { error: "An internal server error occurred." });
         }
     });
-
-    socket.on("domaindat", (res) => {
+    
+    socket.on("domaindat", async () => {
+        const domains = await Domain.find({});
         io.emit("domaindata", domains);
     });
 
@@ -268,16 +265,17 @@ io.on("connection", (socket) => {
         }
     });
 
-    socket.on("admin:sendReminder", (data) => {
-        const newReminder = { ...data, time: new Date() };
-        reminders.push(newReminder);
+    socket.on("admin:sendReminder", async (data) => {
+        const newReminder = new Reminder({ message: data.message });
+        await newReminder.save();
         io.emit("admin:sendReminder", newReminder);
         console.log(`Broadcasted reminder: ${data.message}`);
     });
 
-    socket.on("admin:sendPPT", (data) => {
-        latestPPT = data;
-        io.emit("client:receivePPT", data);
+    socket.on("admin:sendPPT", async (data) => {
+        const newPPT = new PPT({ fileName: data.fileName, fileUrl: data.fileUrl });
+        await newPPT.save();
+        io.emit("client:receivePPT", newPPT);
         console.log(`Broadcasted PPT template: ${data.fileName}`);
     });
 
@@ -291,12 +289,64 @@ io.on("connection", (socket) => {
         let teams = await hackforge.find({}).sort((a, b) => (b.GameScore || 0) - (a.GameScore || 0));
         io.emit("leaderboard", teams);
     });
+
 });
 
-// --- Periodic Registration Status Check ---
+
 setInterval(checkRegistrationStatus, 10000);
 
-server.listen(3001, async () => {
+
+const initializeDomains = async () => {
+    try {
+        const count = await Domain.countDocuments();
+        if (count === 0) {
+            console.log("No domains found in DB. Initializing...");
+            const initialDomains = [
+                 { id: "1", name: "EdTech", slots: 10, description: "Innovations for enhancing learning experiences, course management, and skill development." },
+                { id: "2", name: "Campus Automation", slots: 10, description: "Solutions for smart attendance, resource allocation." },
+                { id: "3", name: "HealthTech", slots: 10, description: "Apps for mental health, fitness tracking, and on-campus medical assistance." },
+                { id: "4", name: "HostelConnect", slots: 10, description: "Platforms for room allocation, maintenance requests, and complaint tracking." },
+                { id: "5", name: "FoodieHub", slots: 10, description: "Apps for food ordering, meal pre-booking, and digital payments." },
+                { id: "6", name: "GreenCampus", slots: 10, description: "Eco-friendly solutions for waste management and energy efficiency." },
+                { id: "7", name: "Transport Solutions", slots: 10, description: "Smart transportation, tracking, and optimization of on-campus buses and cabs." },
+                { id: "8", name: "Student Engagement", slots: 10, description: "Apps for student clubs, campus events, and extracurricular activities management." },
+                { id: "9", name: "Digital Learning Platforms", slots: 10, description: "Interactive e-learning platforms, content sharing, and peer-to-peer learning." },
+            ];
+            await Domain.insertMany(initialDomains);
+            console.log("Domains have been successfully initialized in the database.");
+        }
+    } catch (error) {
+        console.error("Error initializing domains:", error);
+    }
+};
+
+const initializeSettings = async () => {
+    try {
+        const existingSettings = await ServerSetting.findOne({ singleton: 'main' });
+        if (!existingSettings) {
+            console.log("No server settings found. Creating default settings document...");
+            settings = new ServerSetting();
+            await settings.save();
+            console.log("Default settings created in the database.");
+        } else {
+            settings = existingSettings;
+            console.log("Server settings loaded from the database.");
+        }
+    } catch (error) {
+        console.error("Error initializing server settings:", error);
+        process.exit(1); // Exit if settings can't be loaded/created
+    }
+};
+
+
+// --- Server Startup ---
+const startServer = async () => {
     await connectDB();
-    console.log(`Server running at http://localhost:3001`);
-});
+    await initializeDomains();
+    await initializeSettings(); // Load or create settings before listening
+    server.listen(3001, () => {
+        console.log(`Server running at http://localhost:3001`);
+    });
+};
+
+startServer();
