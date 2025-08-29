@@ -52,24 +52,26 @@ app.get("/", (req, res) => {
 });
 
 
+
+
 app.post("/api/admin/update-score/:id", async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { gameScore } = req.body;
-        const team = await hackforge.findById(id);
-        if (!team) {
-            return res.status(404).json({ message: "Team not found." });
-        }
-        team.GameScore = Number(gameScore);
-        await team.save();
-        const updatedLeaderboard = await hackforge.find({}).sort({ GameScore: -1 });
-        io.emit("leaderboard", updatedLeaderboard);
-        console.log(`Score updated for ${team.teamname}. New leaderboard broadcasted.`);
-        res.status(200).json({ message: "Score updated successfully.", team });
-    } catch (error) {
-        console.error("Error updating score:", error);
-        res.status(500).json({ message: "Server error while updating score." });
+  try {
+    
+    const team = await hackforge.findByIdAndUpdate(
+      req.params.id,
+      { $inc: { GameScore: req.body.gameScore } },
+      { new: true }
+    );
+
+    if (!team) {
+      return res.status(404).json({ message: "Team not found" });
     }
+
+    res.json({ message: "Score updated successfully", team });
+  } catch (error) {
+    console.error("Failed to update score:", error);
+    res.status(500).json({ message: "Error updating score" });
+  }
 });
 
 app.post("/pic", async (req, res) => {
