@@ -16,7 +16,7 @@ const generateTeamPassword = async () => {
             await team.save()
             console.log(`S.no ${i+1} Sector ${sector} | Team: ${team.teamname.padEnd(20)}`)
         }
-        console.log("\n=== End of Passwords and Sectors ===\n")
+        console.log("\n=== End of Team Sectors ===\n")
     } catch (error) {
         console.error("Error generating  sectors:", error)
     } finally {

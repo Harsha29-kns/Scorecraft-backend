@@ -16,16 +16,38 @@ def create_team_record(team: Dict) -> Dict:
         "Second Review Score": team.get("SecoundReviewScore", 0),
         "UPI ID": team.get("upiId", ""),
         "Transaction ID": team.get("transtationId", ""),
-        "Verification Status": "Verified" if team.get("verified", False) else "Pending"
+        "Verification Status": "Verified" if team.get("verified", False) else "Pending",
+        "Password": team.get("password", ""),
 
     }
+    first_total = 0
+    second_total = 0
+    third_total = 0
     
     # Add review data if available
     for review_type in ["FirstReview", "SecoundReview", "ThirdReview"]:
         if review_type in team:
             for key, value in team[review_type].items():
-                record[f"{review_type}_{key}"] = value
-    
+                if isinstance(value, dict) and "marks" in value:
+                    record[f"{review_type}_{key}"] = value["marks"]
+
+                    # Add to correct total
+                    if review_type == "FirstReview":
+                        first_total += value["marks"]
+                    elif review_type == "SecoundReview":
+                        second_total += value["marks"]
+                    elif review_type == "ThirdReview":
+                        third_total += value["marks"]
+
+                else:
+                    record[f"{review_type}_{key}"] = value
+
+    # Add totals
+    record["FirstReview_Total"] = first_total
+    record["SecondReview_Total"] = second_total
+    record["ThirdReview_Total"] = third_total
+    record["Grand_Total"] = first_total + second_total + third_total
+
     return record
 
 def generate_excel():

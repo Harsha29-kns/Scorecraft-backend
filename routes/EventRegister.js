@@ -13,10 +13,14 @@ router.use(cors({ origin: "*" }));
 const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
+        type: "OAuth2",
         user: process.env.MAIL,
-        pass: process.env.PASS,
+        clientId: process.env.GMAIL_CLIENT_ID,
+        clientSecret: process.env.GMAIL_CLIENT_SECRET,
+        refreshToken: process.env.GMAIL_REFRESH_TOKEN,
     },
 });
+
 
 
 const paymentVerificationTemplate = (studentName, teamName) => `
@@ -180,6 +184,26 @@ router.get("/teams/count", async (req, res) => {
     } catch (error) {
         console.error("Error fetching team count:", error);
         res.status(500).json({ message: "Error fetching team count" });
+    }
+});
+// Add this route for testing purposes
+router.get("/test-email", async (req, res) => {
+    try {
+        console.log("Attempting to send a test email...");
+
+        // Use your existing sendEmail function
+        await sendEmail(
+            process.env.MAIL, // Send the test email to yourself
+            "Nodemailer OAuth 2.0 Test",
+            "<h1>Success!</h1><p>If you received this, your OAuth 2.0 setup is working correctly.</p>"
+        );
+
+        console.log("Test email sent successfully.");
+        res.status(200).json({ message: "Test email sent successfully! Check your inbox." });
+
+    } catch (error) {
+        console.error("Failed to send test email:", error);
+        res.status(500).json({ message: "Failed to send test email.", error: error.message });
     }
 });
 
