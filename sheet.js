@@ -1,6 +1,6 @@
 const { google } = require('googleapis');
 // Make sure this is the correct path to your key file
-const keys = require('./club-466212-b7bd404e8fb1.json');
+const keys = require('./scorecraft-mailer-f01977c38fa1.json');
 
 // Initialize the JWT client
 const client = new google.auth.JWT(
@@ -52,6 +52,7 @@ async function sendData(teamData) {
             email,                      // Column H: Team Lead Email
             type,                       // Column I: Room Type
             room || 'N/A'               // Column J: Room No (use 'N/A' if empty)
+            
         ]);
 
         // 2. Create a row for each team member
@@ -74,7 +75,7 @@ async function sendData(teamData) {
 
         // 3. Append all the created rows to the sheet in a single API call
         const response = await sheets.spreadsheets.values.append({
-            spreadsheetId: '1hubFBFEGzFinfhOJjGybcqapp0c-bG-39onL8tPXyZc',
+            spreadsheetId: '1Fs22_wlmytKU0Ax31Dfx5gC7kqoq6CMpdr-tvFkhUNU',
             range: 'Sheet1!A:J', // The range now covers all 10 columns
             valueInputOption: 'RAW',
             resource: {

@@ -138,7 +138,7 @@ const qrCodeEmailTemplate = (studentName, teamName, members) => {
               To receive all important updates, announcements, and schedules, please join our official WhatsApp group.
             </p>
             <div style="text-align: center; margin: 30px 0;">
-              <a href="https://chat.whatsapp.com/" style="text-decoration: none; background: linear-gradient(90deg, #4a00e0, #8e2de2); color: #ffffff; padding: 15px 35px; border-radius: 50px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+              <a href="https://chat.whatsapp.com/Is73YCPbEeN9vbhyGAoFLe" style="text-decoration: none; background: linear-gradient(90deg, #4a00e0, #8e2de2); color: #ffffff; padding: 15px 35px; border-radius: 50px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
                 Join Official Group
               </a>
             </div>
@@ -178,7 +178,7 @@ const sendEmail = async (to, subject, html, attachments = []) => {
 
 router.get("/teams/count", async (req, res) => {
     try {
-        // --- CHANGED: This now counts ALL teams (verified and unverified) ---
+        
         const teamCount = await hackforge.countDocuments({});
         res.status(200).json({ count: teamCount });
     } catch (error) {
@@ -222,10 +222,10 @@ router.post("/team/:password", async (req, res) => {
     }
 });
 
-// In your EventRegister.js file
+
 router.post("/register", async (req, res) => {
     try {
-        // --- MODIFIED: Check the comprehensive status from middleware ---
+        
         if (req.isRegClosed) {
             return res.status(403).json({ message: "Registration is currently closed." });
         }
@@ -233,7 +233,7 @@ router.post("/register", async (req, res) => {
         const registrationLimit = req.registrationLimit;
         const countTeam = await hackforge.countDocuments({});
         
-        // This if statement is no longer needed but kept as a backup validation
+        
         if (countTeam < registrationLimit) {
             const { name, email, teamname } = req.body;
             req.body.registrationNumber = (countTeam + 1).toString();
@@ -254,7 +254,7 @@ router.post("/register", async (req, res) => {
             const newTotalCount = countTeam + 1;
             if (req.io) {
                 req.io.emit("registrationStatus", {
-                    isClosed: req.isRegClosed, // Use the pre-calculated status
+                    isClosed: req.isRegClosed, 
                     count: newTotalCount,
                     limit: registrationLimit
                 });
@@ -263,7 +263,7 @@ router.post("/register", async (req, res) => {
             res.status(201).json({ message: "Team registered and email sent successfully", data });
         }
         else {
-            // This case should now be caught by the first if block
+            
             res.status(403).json({ message: "Registration is full. Cannot accept new teams." });
         }
     } catch (err) {
@@ -541,7 +541,7 @@ router.post("/updateDomain", async (req, res) => {
       return res.status(404).send("Team not found.");
     }
 
-    // Send a success response back to the admin panel
+    
     res.status(200).json({ message: "Domain updated successfully", team: updatedTeam });
 
   } catch (error) {
